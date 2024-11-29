@@ -24,17 +24,18 @@ class AsyncSecretsServer:
                 if msg[0] == "get_env":
                     self.logger.info(f"GET: {msg[1]}")
                     response  = self.server.get_request(msg[1])
-                    writer.write(response.encode())
+                    writer.write(response.encode() if response else b"ERROR: Key not found")
                 elif msg[0] == "store_env":
                     self.logger.info(f"STORE: {msg[1]}")
-                    for value in msg[1:-1]:
-                        self.server.store_request(value)
+                    for key, value in msg[1][0:]:
+                        self.logger.info(f"Storing {key}, {value[0]}")
+                        self.server.store_request(key, value[0])
                     writer.write(b"OK")
                 else:
                     self.logger.warning(f"Unknown command: {msg[0]}")
                     writer.write(b"ERROR: Unknown command")
 
-                await writer.drain()  # Ensure data is sent to the client
+                await writer.drain()
         except Exception as e:
             self.logger.error(f"Error handling client {address}: {e}")
         finally:
