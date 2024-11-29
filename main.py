@@ -23,10 +23,8 @@ class AsyncSecretsServer:
                 msg = eval(data.decode())  # Replace with safer deserialization
                 if msg[0] == "get_env":
                     self.logger.info(f"GET: {msg[1]}")
-                    responses = []
-                    for value in msg[1:]:
-                        responses.append(self.server.get_request(value))
-                    writer.write(','.join(responses).encode())
+                    response  = self.server.get_request(msg[1])
+                    writer.write(response.encode())
                 elif msg[0] == "store_env":
                     self.logger.info(f"STORE: {msg[1]}")
                     for value in msg[1:-1]:
