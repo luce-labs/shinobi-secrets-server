@@ -13,14 +13,7 @@ pub struct SecretsServer {
 
 impl SecretsServer {
     pub fn new() -> Self {
-        let mut store = SecureStore::new();
-
-        store
-            .store_secret("DB_PASSWORD".to_string(), "super_secret_123".to_string())
-            .expect("Failed to store DB password");
-        store
-            .store_secret("API_KEY".to_string(), "very_secret_key_456".to_string())
-            .expect("Failed to store API key");
+        let store = SecureStore::new();
 
         SecretsServer {
             store: Arc::new(Mutex::new(store)),
@@ -30,32 +23,83 @@ impl SecretsServer {
     pub fn handle_client(self: &Self, mut stream: TcpStream) -> std::io::Result<()> {
         let mut buffer = [0; 1024];
         let n = stream.read(&mut buffer)?;
-
+        println!("getting");
         match serde_json::from_slice::<Vec<String>>(&buffer[..n]) {
             Ok(commands) if !commands.is_empty() && commands[0] == "get_env" => {
                 let keys = &commands[1..];
 
                 let mut response = HashMap::new();
 
-                {
-                    let store = self.store.lock().unwrap();
-
-                    for key in keys {
-                        if let Some(secret) = store.get_secret(key) {
-                            response.insert(key.clone(), secret);
+                let store = self.store.lock();
+                match store {
+                    Ok(store) => {
+                        for key in keys {
+                            if let Some(secret) = store.get_secret(key) {
+                                println!("{:?}", secret);
+                                response.insert(key.clone(), secret);
+                                println!("{:?}", response);
+                            }
                         }
                     }
+                    Err(e) => eprintln!("Error locking store: {}", e),
                 }
 
-                let response_json = serde_json::to_string(&response)?;
-                let mut response_buffer = Vec::new();
-                response_buffer.write_u32::<NetworkEndian>(response_json.len() as u32)?;
-                response_buffer.extend_from_slice(response_json.as_bytes());
+                let response_json = serde_json::to_string(&response);
+                match response_json {
+                    Ok(response_json) => {
+                        println!("{:?}", response_json);
+                        let mut response_buffer = Vec::new();
+                        response_buffer.write_u32::<NetworkEndian>(response_json.len() as u32)?;
+                        response_buffer.extend_from_slice(response_json.as_bytes());
 
-                stream.write_all(&response_buffer)?;
+                        let result = stream.write_all(&response_buffer);
+                        match result {
+                            Ok(_) => println!("Response sent successfully"),
+                            Err(e) => eprintln!("Error sending response: {}", e),
+                        }
+                    }
+                    Err(e) => eprintln!("Error serializing response: {}", e),
+                }
+            }
+
+            Ok(commands) if !commands.is_empty() && commands[0].as_str() == "store_env" => {
+                println!("Storing secrets");
+                if let Some(data) = commands.get(1) {
+                    // Directly parse the HashMap from the JSON string
+                    let secrets: HashMap<String, String> = match Some(data.as_str()) {
+                        Some(s) => serde_json::from_str(s).map_err(|_| {
+                            std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "Invalid secrets data",
+                            )
+                        })?,
+                        None => {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "Invalid secrets data",
+                            ))
+                        }
+                    };
+                    let store = self.store.lock();
+                    match store {
+                        Ok(mut store) => {
+                            for (key, value) in secrets {
+                                store
+                                    .store_secret(key, value)
+                                    .expect("Failed to store secret");
+                            }
+                        }
+                        Err(e) => eprintln!("Error locking store: {}", e),
+                    }
+
+                    stream.write_all(&[0, 0, 0, 0])?;
+                } else {
+                    stream.write_all(&[0, 0, 0, 0])?; // Empty response
+                }
             }
             _ => {
                 stream.write_all(&[0, 0, 0, 0])?; // Empty response
+                println!("Invalid command");
             }
         }
 
@@ -64,7 +108,7 @@ impl SecretsServer {
 
     pub fn run(self) -> std::io::Result<()> {
         let listener = TcpListener::bind("127.0.0.1:6000")?;
-        println!("Server started successfully");
+        println!("Server started successfully on port 6000");
 
         for stream in listener.incoming() {
             match stream {
