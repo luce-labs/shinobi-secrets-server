@@ -1,4 +1,6 @@
 use byteorder::{NetworkEndian, WriteBytesExt};
+use env_logger;
+use log::{debug, error, info, trace, warn};
 use serde_json;
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -21,11 +23,17 @@ impl SecretsServer {
     }
 
     pub fn handle_client(self: &Self, mut stream: TcpStream) -> std::io::Result<()> {
+        info!(
+            "Handling client connection on {}:{}",
+            stream.peer_addr().unwrap().ip(),
+            stream.peer_addr().unwrap().port()
+        );
+
         let mut buffer = [0; 1024];
         let n = stream.read(&mut buffer)?;
-        println!("getting");
         match serde_json::from_slice::<Vec<String>>(&buffer[..n]) {
             Ok(commands) if !commands.is_empty() && commands[0] == "get_env" => {
+                info!("GET_ENV");
                 let keys = &commands[1..];
 
                 let mut response = HashMap::new();
@@ -35,35 +43,32 @@ impl SecretsServer {
                     Ok(store) => {
                         for key in keys {
                             if let Some(secret) = store.get_secret(key) {
-                                println!("{:?}", secret);
                                 response.insert(key.clone(), secret);
-                                println!("{:?}", response);
                             }
                         }
                     }
-                    Err(e) => eprintln!("Error locking store: {}", e),
+                    Err(e) => error!("Error locking store: {}", e),
                 }
 
                 let response_json = serde_json::to_string(&response);
                 match response_json {
                     Ok(response_json) => {
-                        println!("{:?}", response_json);
                         let mut response_buffer = Vec::new();
                         response_buffer.write_u32::<NetworkEndian>(response_json.len() as u32)?;
                         response_buffer.extend_from_slice(response_json.as_bytes());
 
                         let result = stream.write_all(&response_buffer);
                         match result {
-                            Ok(_) => println!("Response sent successfully"),
-                            Err(e) => eprintln!("Error sending response: {}", e),
+                            Ok(_) => info!("Response sent successfully"),
+                            Err(e) => error!("Error sending response: {}", e),
                         }
                     }
-                    Err(e) => eprintln!("Error serializing response: {}", e),
+                    Err(e) => error!("Error serializing response: {}", e),
                 }
             }
 
             Ok(commands) if !commands.is_empty() && commands[0].as_str() == "store_env" => {
-                println!("Storing secrets");
+                info!("STORE_ENV");
                 if let Some(data) = commands.get(1) {
                     // Directly parse the HashMap from the JSON string
                     let secrets: HashMap<String, String> = match Some(data.as_str()) {
@@ -89,7 +94,7 @@ impl SecretsServer {
                                     .expect("Failed to store secret");
                             }
                         }
-                        Err(e) => eprintln!("Error locking store: {}", e),
+                        Err(e) => error!("Error locking store: {}", e),
                     }
 
                     stream.write_all(&[0, 0, 0, 0])?;
@@ -99,7 +104,7 @@ impl SecretsServer {
             }
             _ => {
                 stream.write_all(&[0, 0, 0, 0])?; // Empty response
-                println!("Invalid command");
+                error!("Invalid command");
             }
         }
 
@@ -107,8 +112,11 @@ impl SecretsServer {
     }
 
     pub fn run(self) -> std::io::Result<()> {
+        env_logger::init();
+
         let listener = TcpListener::bind("127.0.0.1:6000")?;
-        println!("Server started successfully on port 6000");
+
+        info!("Server started successfully on port 6000");
 
         for stream in listener.incoming() {
             match stream {
@@ -119,11 +127,11 @@ impl SecretsServer {
 
                     std::thread::spawn(move || {
                         if let Err(e) = server_clone.handle_client(stream) {
-                            eprintln!("Error handling client: {}", e);
+                            error!("Error handling client: {}", e);
                         }
                     });
                 }
-                Err(e) => eprintln!("Connection failed: {}", e),
+                Err(e) => error!("Connection failed: {}", e),
             }
         }
 
