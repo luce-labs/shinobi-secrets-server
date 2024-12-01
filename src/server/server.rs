@@ -8,6 +8,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 
 use crate::server::store::SecureStore;
+use crate::types::protected_secret::ProtectedSecret;
 
 pub struct SecretsServer {
     pub store: Arc<Mutex<SecureStore>>,
@@ -42,7 +43,8 @@ impl SecretsServer {
                 match store {
                     Ok(store) => {
                         for key in keys {
-                            if let Some(secret) = store.get_secret(key) {
+                            if let Some(secret) = Some(ProtectedSecret::new(store.get_secret(key)))
+                            {
                                 response.insert(key.clone(), secret);
                             }
                         }
@@ -70,7 +72,6 @@ impl SecretsServer {
             Ok(commands) if !commands.is_empty() && commands[0].as_str() == "store_env" => {
                 info!("STORE_ENV");
                 if let Some(data) = commands.get(1) {
-                    // Directly parse the HashMap from the JSON string
                     let secrets: HashMap<String, String> = match Some(data.as_str()) {
                         Some(s) => serde_json::from_str(s).map_err(|_| {
                             std::io::Error::new(

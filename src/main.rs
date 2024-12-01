@@ -1,4 +1,5 @@
 pub mod server;
+pub mod types;
 
 use server::server::SecretsServer;
 
