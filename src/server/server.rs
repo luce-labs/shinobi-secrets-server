@@ -1,6 +1,7 @@
 use byteorder::{NetworkEndian, WriteBytesExt};
+use daemonize::Daemonize;
 use env_logger;
-use log::{debug, error, info, trace, warn};
+use log::{error, info};
 use reqwest::{
     header::{HeaderMap, HeaderValue, AUTHORIZATION},
     Client,
@@ -9,6 +10,7 @@ use serde::Serialize;
 use serde_json::{self, Value};
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs::File;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
@@ -184,6 +186,18 @@ impl SecretsServer {
     pub fn run(self) -> std::io::Result<()> {
         env_logger::init();
 
+        // Set up the daemon
+        let stdout = File::create("/tmp/server.stdout").unwrap();
+        let stderr = File::create("/tmp/server.stderr").unwrap();
+        let daemonize = Daemonize::new()
+            .pid_file("/tmp/server.pid") // Specify a PID file
+            .stdout(stdout) // Redirect stdout
+            .stderr(stderr); // Redirect stderr
+
+        // Start the daemon
+        daemonize.start().expect("Failed to daemonize process");
+
+        // Start the TCP server
         let listener = TcpListener::bind("127.0.0.1:6000")?;
         info!("Server started successfully on port 6000");
 
