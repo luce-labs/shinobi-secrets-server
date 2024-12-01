@@ -67,6 +67,7 @@ impl SecretsServer {
 
         if response.status() == reqwest::StatusCode::OK {
             let project: Value = response.json().await?;
+            println!("{:?}", project);
             Ok(project)
         } else {
             let error_msg: Value = response.json().await?;
