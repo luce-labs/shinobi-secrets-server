@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 use crate::server::store::SecureStore;
 use crate::types::protected_secret::ProtectedSecret;
 
+#[derive(Clone)]
 pub struct SecretsServer {
     pub store: Arc<Mutex<SecureStore>>,
     pub client: Client,
