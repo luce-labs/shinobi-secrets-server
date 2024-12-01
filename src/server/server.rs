@@ -189,19 +189,24 @@ impl SecretsServer {
         env_logger::init();
 
         // Set up the daemon
-        let stdout = File::create("/tmp/server.stdout").unwrap();
-        let stderr = File::create("/tmp/server.stderr").unwrap();
-        let daemonize = Daemonize::new()
-            .pid_file("/tmp/server.pid") // Specify a PID file
-            .stdout(stdout) // Redirect stdout
-            .stderr(stderr); // Redirect stderr
+        // let stdout = File::create("/tmp/server.stdout").unwrap();
+        // let stderr = File::create("/tmp/server.stderr").unwrap();
+        // let daemonize = Daemonize::new()
+        //     .pid_file("/tmp/server.pid") // Specify a PID file
+        //     .stdout(stdout) // Redirect stdout
+        //     .stderr(stderr); // Redirect stderr
 
-        // Start the daemon
-        daemonize.start().expect("Failed to daemonize process");
+        // // Start the daemon
+        // daemonize.start().expect("Failed to daemonize process");
 
         // Start the TCP server
         let listener = TcpListener::bind("127.0.0.1:6000")?;
         info!("Server started successfully on port 6000");
+
+        let input = GetKeysInput {
+            project_name: "shinobi".to_string(),
+            token: "1234".to_string(),
+        };
 
         let server = Arc::new(self);
 
