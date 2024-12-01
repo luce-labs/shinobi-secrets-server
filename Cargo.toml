@@ -1,5 +1,5 @@
 [package]
-name = "shinobi-secrets-server"
+name = "shinobi_secrets_server"
 version = "0.1.0"
 edition = "2021"
 
