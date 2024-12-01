@@ -1,8 +1,14 @@
 use byteorder::{NetworkEndian, WriteBytesExt};
 use env_logger;
 use log::{debug, error, info, trace, warn};
-use serde_json;
+use reqwest::{
+    header::{HeaderMap, HeaderValue, AUTHORIZATION},
+    Client,
+};
+use serde::Serialize;
+use serde_json::{self, Value};
 use std::collections::HashMap;
+use std::error::Error;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
@@ -12,14 +18,56 @@ use crate::types::protected_secret::ProtectedSecret;
 
 pub struct SecretsServer {
     pub store: Arc<Mutex<SecureStore>>,
+    pub client: Client,
+    pub base_url: String,
+    pub token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GetKeysInput {
+    pub project_name: String,
+    pub token: String,
 }
 
 impl SecretsServer {
-    pub fn new() -> Self {
+    pub fn new(base_url: String, token: String) -> Self {
         let store = SecureStore::new();
+        let client = Client::new();
 
         SecretsServer {
             store: Arc::new(Mutex::new(store)),
+            client,
+            base_url,
+            token,
+        }
+    }
+
+    pub async fn build_project(
+        &self,
+        input: GetKeysInput,
+    ) -> Result<serde_json::Value, Box<dyn Error>> {
+        let url = format!("{}/projects/getkeys", self.base_url);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {}", self.token))?,
+        );
+
+        let response = self
+            .client
+            .post(&url)
+            .headers(headers)
+            .json(&input)
+            .send()
+            .await?;
+
+        if response.status() == reqwest::StatusCode::OK {
+            let project: Value = response.json().await?;
+            Ok(project)
+        } else {
+            let error_msg: Value = response.json().await?;
+            Err(format!("{:?}", error_msg).into())
         }
     }
 
@@ -112,19 +160,39 @@ impl SecretsServer {
         Ok(())
     }
 
+    pub fn get_keys(
+        &self,
+        project_name: String,
+        token: String,
+    ) -> Result<HashMap<String, String>, String> {
+        let mut keys = HashMap::new();
+
+        let store = self.store.lock();
+        match store {
+            Ok(store) => {
+                let key = format!("{}_{}", project_name, token);
+                if let Some(secret) = store.get_secret(&key) {
+                    keys.insert("keys".to_string(), secret);
+                }
+            }
+            Err(e) => return Err(format!("Error locking store: {}", e)),
+        }
+
+        Ok(keys)
+    }
+
     pub fn run(self) -> std::io::Result<()> {
         env_logger::init();
 
         let listener = TcpListener::bind("127.0.0.1:6000")?;
-
         info!("Server started successfully on port 6000");
+
+        let server = Arc::new(self);
 
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    let server_clone = SecretsServer {
-                        store: Arc::clone(&self.store),
-                    };
+                    let server_clone = Arc::clone(&server);
 
                     std::thread::spawn(move || {
                         if let Err(e) = server_clone.handle_client(stream) {
