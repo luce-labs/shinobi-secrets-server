@@ -13,7 +13,7 @@ pub struct DHKeyExchange {
 
 impl DHKeyExchange {
     pub fn new() -> Self {
-        let prime = BigUint::from_radix_be(
+        let prime = BigUint::parse_bytes(
             "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08F3E1EF4E3E05A3BBB18C09E1A9BFC3B05A77C28BEE6A3A92D13B5D39B4C02FF0D0E98C8B4BE6C4B5433B7BB0C7B2A209B04CA00803111E5".as_bytes(),
             16
         ).expect("invalid prime number");
