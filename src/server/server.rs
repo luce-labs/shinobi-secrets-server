@@ -67,7 +67,7 @@ impl SecretsServer {
 
         if response.status() == reqwest::StatusCode::OK {
             let project: Value = response.json().await?;
-            info!("{:?}", project);
+            info!("{:?}", project.get("keys"));
             Ok(project)
         } else {
             let error_msg: Value = response.json().await?;
@@ -113,6 +113,8 @@ impl SecretsServer {
                     }
                     Err(e) => error!("Error locking store: {}", e),
                 }
+
+                info!("response: {:?}", response);
 
                 let response_json = serde_json::to_string(&response);
                 match response_json {
