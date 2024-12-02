@@ -241,14 +241,20 @@ impl SecretsServer {
             match stream {
                 Ok(stream) => {
                     let server_clone = Arc::clone(&server);
-
                     tokio::spawn(async move {
                         if let Err(e) = server_clone.handle_client(stream).await {
                             error!("Error handling client: {}", e);
                         }
                     });
                 }
-                Err(e) => error!("Connection failed: {}", e),
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    // This error is expected in non-blocking mode
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    continue;
+                }
+                Err(e) => {
+                    error!("Connection failed: {}", e);
+                }
             }
         }
 
