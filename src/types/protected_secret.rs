@@ -31,7 +31,7 @@ impl fmt::Debug for ProtectedValue {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct ProtectedSecret {
     value: Option<ProtectedValue>,
 }
@@ -50,6 +50,11 @@ impl ProtectedSecret {
     pub fn exists(&self) -> bool {
         self.value.is_some()
     }
+
+    // pub fn serialize_self(&self) -> Self {
+    //     // Return a copy of itself (in this case, the struct itself is returned as is)
+    //     self.clone()
+    // }
 }
 
 impl fmt::Display for ProtectedSecret {
@@ -88,3 +93,19 @@ impl PartialEq<str> for ProtectedSecret {
 //         Ok(ProtectedSecret::new(None)) // No value is reconstructed during deserialization
 //     }
 // }
+impl Serialize for ProtectedSecret {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // If value is `None`, serialize it to "[PROTECTED]".
+        if let Some(value) = &self.value {
+            // Here, we can call the `serialize_self` function, if needed
+            // In this case, `serialize_self()` just returns the same struct.
+            serializer.serialize_str(&value.to_string())
+        } else {
+            // Serialize as the placeholder string "[PROTECTED]"
+            serializer.serialize_str("[PROTECTED]")
+        }
+    }
+}
