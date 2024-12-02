@@ -194,7 +194,29 @@ impl SecretsServer {
         let server = Arc::new(self);
 
         match server.build_project(input).await {
-            Ok(project) => info!("Project built successfully: {:?}", project),
+            Ok(project) => {
+                info!("Project built successfully: {:?}", project);
+
+                // Extract and store the secrets
+                if let Some(keys) = project.get("keys").and_then(|keys| keys.as_object()) {
+                    let store = server.store.lock();
+                    if let Ok(mut store) = store {
+                        for (key, value) in keys {
+                            if let Some(value_str) = value.as_str() {
+                                store
+                                    .store_secret(key.clone(), value_str.to_string())
+                                    .unwrap_or_else(|e| {
+                                        error!("Failed to store key '{}': {}", key, e);
+                                    });
+                            }
+                        }
+                    } else {
+                        error!("Failed to lock store for storing secrets");
+                    }
+                } else {
+                    error!("No valid keys found in the project response");
+                }
+            }
             Err(e) => {
                 error!("Failed to build project: {}", e);
                 return Err(std::io::Error::new(
@@ -209,7 +231,6 @@ impl SecretsServer {
                 Ok(stream) => {
                     let server_clone = Arc::clone(&server);
 
-                    // Handle each connection asynchronously
                     tokio::spawn(async move {
                         if let Err(e) = server_clone.handle_client(stream).await {
                             error!("Error handling client: {}", e);
