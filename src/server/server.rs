@@ -125,6 +125,7 @@ impl SecretsServer {
                         match result {
                             Ok(_) => {
                                 info!("Response sent successfully");
+                                stream.flush()?;
                                 stream.shutdown(std::net::Shutdown::Write)?;
                             }
                             Err(e) => {
