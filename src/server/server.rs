@@ -75,7 +75,7 @@ impl SecretsServer {
         }
     }
 
-    pub fn handle_client(self: &Self, mut stream: TcpStream) -> std::io::Result<()> {
+    pub async fn handle_client(self: &Self, mut stream: TcpStream) -> std::io::Result<()> {
         info!(
             "Handling client connection on {}:{}",
             stream.peer_addr().unwrap().ip(),
@@ -188,32 +188,30 @@ impl SecretsServer {
     pub async fn run(self, input: GetKeysInput) -> std::io::Result<()> {
         env_logger::init();
 
-        // Set up the daemon
-        // let stdout = File::create("/tmp/server.stdout").unwrap();
-        // let stderr = File::create("/tmp/server.stderr").unwrap();
-        // let daemonize = Daemonize::new()
-        //     .pid_file("/tmp/server.pid") // Specify a PID file
-        //     .stdout(stdout) // Redirect stdout
-        //     .stderr(stderr); // Redirect stderr
-
-        // // Start the daemon
-        // daemonize.start().expect("Failed to daemonize process");
-
-        // Start the TCP server
         let listener = TcpListener::bind("127.0.0.1:6000")?;
         info!("Server started successfully on port 6000");
 
         let server = Arc::new(self);
 
-        let project = server.build_project(input).await.unwrap();
-        info!("{:?}", project);
+        match server.build_project(input).await {
+            Ok(project) => info!("Project built successfully: {:?}", project),
+            Err(e) => {
+                error!("Failed to build project: {}", e);
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                ));
+            }
+        }
 
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
                     let server_clone = Arc::clone(&server);
-                    std::thread::spawn(move || {
-                        if let Err(e) = server_clone.handle_client(stream) {
+
+                    // Handle each connection asynchronously
+                    tokio::spawn(async move {
+                        if let Err(e) = server_clone.handle_client(stream).await {
                             error!("Error handling client: {}", e);
                         }
                     });
