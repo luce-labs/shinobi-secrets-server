@@ -98,13 +98,9 @@ impl Serialize for ProtectedSecret {
     where
         S: Serializer,
     {
-        // If value is `None`, serialize it to "[PROTECTED]".
         if let Some(value) = &self.value {
-            // Here, we can call the `serialize_self` function, if needed
-            // In this case, `serialize_self()` just returns the same struct.
             serializer.serialize_str(&value.to_string())
         } else {
-            // Serialize as the placeholder string "[PROTECTED]"
             serializer.serialize_str("[PROTECTED]")
         }
     }
