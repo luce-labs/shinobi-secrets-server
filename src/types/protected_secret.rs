@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::ops::Deref;
 
@@ -31,7 +31,6 @@ impl fmt::Debug for ProtectedValue {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
 pub struct ProtectedSecret {
     value: Option<ProtectedValue>,
 }
@@ -67,5 +66,24 @@ impl fmt::Debug for ProtectedSecret {
 impl PartialEq<str> for ProtectedSecret {
     fn eq(&self, other: &str) -> bool {
         self.value.as_ref().map(|v| &**v) == Some(other)
+    }
+}
+
+impl Serialize for ProtectedSecret {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str("[PROTECTED]")
+    }
+}
+
+impl<'de> Deserialize<'de> for ProtectedSecret {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let _ = String::deserialize(deserializer)?; // Ignore incoming value
+        Ok(ProtectedSecret::new(None)) // No value is reconstructed during deserialization
     }
 }

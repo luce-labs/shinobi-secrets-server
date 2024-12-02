@@ -222,7 +222,7 @@ impl SecretsServer {
 
         match server.build_project(input).await {
             Ok(project) => {
-                info!("Project built successfully: {:?}", project);
+                info!("Pull keys from server");
 
                 // Extract and store the secrets
                 if let Some(keys) = project.get("keys").and_then(|keys| keys.as_object()) {
