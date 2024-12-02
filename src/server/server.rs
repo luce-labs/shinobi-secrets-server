@@ -83,7 +83,17 @@ impl SecretsServer {
         );
 
         let mut buffer = [0; 1024];
-        let n = stream.read(&mut buffer)?;
+        let n = match stream.read(&mut buffer) {
+            Ok(n) if n > 0 => n,
+            Ok(_) => {
+                error!("Received empty data from client");
+                return Ok(()); // Exit gracefully
+            }
+            Err(e) => {
+                error!("Error reading from client: {}", e);
+                return Err(e);
+            }
+        };
         match serde_json::from_slice::<Vec<String>>(&buffer[..n]) {
             Ok(commands) if !commands.is_empty() && commands[0] == "get_env" => {
                 info!("GET_ENV");
@@ -189,6 +199,7 @@ impl SecretsServer {
         env_logger::init();
 
         let listener = TcpListener::bind("127.0.0.1:6000")?;
+        listener.set_nonblocking(true)?;
         info!("Server started successfully on port 6000");
 
         let server = Arc::new(self);
