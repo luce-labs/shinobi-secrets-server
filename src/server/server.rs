@@ -67,7 +67,7 @@ impl SecretsServer {
 
         if response.status() == reqwest::StatusCode::OK {
             let project: Value = response.json().await?;
-            println!("{:?}", project);
+            info!("{:?}", project);
             Ok(project)
         } else {
             let error_msg: Value = response.json().await?;
@@ -185,7 +185,7 @@ impl SecretsServer {
         Ok(keys)
     }
 
-    pub fn run(self) -> std::io::Result<()> {
+    pub async fn run(self, input: GetKeysInput) -> std::io::Result<()> {
         env_logger::init();
 
         // Set up the daemon
@@ -203,18 +203,15 @@ impl SecretsServer {
         let listener = TcpListener::bind("127.0.0.1:6000")?;
         info!("Server started successfully on port 6000");
 
-        let input = GetKeysInput {
-            project_name: "shinobi".to_string(),
-            token: "1234".to_string(),
-        };
-
         let server = Arc::new(self);
+
+        let project = server.build_project(input).await.unwrap();
+        info!("{:?}", project);
 
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
                     let server_clone = Arc::clone(&server);
-
                     std::thread::spawn(move || {
                         if let Err(e) = server_clone.handle_client(stream) {
                             error!("Error handling client: {}", e);
