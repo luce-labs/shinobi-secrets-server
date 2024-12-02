@@ -123,11 +123,20 @@ impl SecretsServer {
 
                         let result = stream.write_all(&response_buffer);
                         match result {
-                            Ok(_) => info!("Response sent successfully"),
-                            Err(e) => error!("Error sending response: {}", e),
+                            Ok(_) => {
+                                info!("Response sent successfully");
+                                stream.shutdown(std::net::Shutdown::Write)?;
+                            }
+                            Err(e) => {
+                                error!("Error sending response: {}", e);
+                                stream.shutdown(std::net::Shutdown::Write)?;
+                            }
                         }
                     }
-                    Err(e) => error!("Error serializing response: {}", e),
+                    Err(e) => {
+                        error!("Error serializing response: {}", e);
+                        stream.shutdown(std::net::Shutdown::Write)?;
+                    }
                 }
             }
 
@@ -161,8 +170,10 @@ impl SecretsServer {
                     }
 
                     stream.write_all(&[0, 0, 0, 0])?;
+                    stream.shutdown(std::net::Shutdown::Write)?;
                 } else {
                     stream.write_all(&[0, 0, 0, 0])?; // Empty response
+                    stream.shutdown(std::net::Shutdown::Write)?;
                 }
             }
             _ => {
