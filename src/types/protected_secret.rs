@@ -31,6 +31,7 @@ impl fmt::Debug for ProtectedValue {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ProtectedSecret {
     value: Option<ProtectedValue>,
 }
@@ -69,21 +70,21 @@ impl PartialEq<str> for ProtectedSecret {
     }
 }
 
-impl Serialize for ProtectedSecret {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str("[PROTECTED]")
-    }
-}
+// impl Serialize for ProtectedSecret {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         serializer.serialize_str("[PROTECTED]")
+//     }
+// }
 
-impl<'de> Deserialize<'de> for ProtectedSecret {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let _ = String::deserialize(deserializer)?; // Ignore incoming value
-        Ok(ProtectedSecret::new(None)) // No value is reconstructed during deserialization
-    }
-}
+// impl<'de> Deserialize<'de> for ProtectedSecret {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         let _ = String::deserialize(deserializer)?; // Ignore incoming value
+//         Ok(ProtectedSecret::new(None)) // No value is reconstructed during deserialization
+//     }
+// }
