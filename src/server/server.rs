@@ -129,12 +129,14 @@ impl SecretsServer {
                             }
                             Err(e) => {
                                 error!("Error sending response: {}", e);
+                                stream.flush()?;
                                 stream.shutdown(std::net::Shutdown::Write)?;
                             }
                         }
                     }
                     Err(e) => {
                         error!("Error serializing response: {}", e);
+                        stream.flush()?;
                         stream.shutdown(std::net::Shutdown::Write)?;
                     }
                 }
@@ -170,14 +172,17 @@ impl SecretsServer {
                     }
 
                     stream.write_all(&[0, 0, 0, 0])?;
+                    stream.flush()?;
                     stream.shutdown(std::net::Shutdown::Write)?;
                 } else {
                     stream.write_all(&[0, 0, 0, 0])?; // Empty response
+                    stream.flush()?;
                     stream.shutdown(std::net::Shutdown::Write)?;
                 }
             }
             _ => {
                 stream.write_all(&[0, 0, 0, 0])?; // Empty response
+                stream.flush()?;
                 error!("Invalid command");
             }
         }
