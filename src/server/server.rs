@@ -238,6 +238,7 @@ impl SecretsServer {
         }
 
         for stream in listener.incoming() {
+            info!("Server listening on port 127.0.0.1:6000");
             match stream {
                 Ok(stream) => {
                     let server_clone = Arc::clone(&server);
