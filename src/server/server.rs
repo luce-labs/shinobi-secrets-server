@@ -199,7 +199,6 @@ impl SecretsServer {
         env_logger::init();
 
         let listener = TcpListener::bind("127.0.0.1:6000")?;
-        listener.set_nonblocking(true)?;
         info!("Server started successfully on port 6000");
 
         let server = Arc::new(self);
