@@ -2,6 +2,7 @@ use byteorder::{NetworkEndian, WriteBytesExt};
 use daemonize::Daemonize;
 use env_logger;
 use log::{error, info};
+use num_bigint::{BigUint, RandBigInt};
 use reqwest::{
     header::{HeaderMap, HeaderValue, AUTHORIZATION},
     Client,
@@ -15,6 +16,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 
+use crate::server::key_exchange::DHKeyExchange;
 use crate::server::store::SecureStore;
 use crate::types::protected_secret::ProtectedSecret;
 
@@ -82,6 +84,26 @@ impl SecretsServer {
             stream.peer_addr().unwrap().port()
         );
 
+        let dh_exchange = DHKeyExchange::new();
+        let server_public_key = dh_exchange.get_public_key().to_bytes_be();
+
+        // Send server's public key
+        stream.write_all(&(server_public_key.len() as u32).to_be_bytes())?;
+        stream.write_all(&server_public_key)?;
+
+        // Read client's public key
+        let mut client_key_length = [0u8; 4];
+        stream.read_exact(&mut client_key_length)?;
+        let client_key_length = u32::from_be_bytes(client_key_length) as usize;
+
+        let mut client_public_key_bytes = vec![0u8; client_key_length];
+        stream.read_exact(&mut client_public_key_bytes)?;
+
+        let client_public_key = BigUint::from_bytes_be(&client_public_key_bytes);
+
+        // Compute shared secret
+        let shared_secret = dh_exchange.compute_shared_secret(&client_public_key);
+
         let mut buffer = [0; 1024];
         let n = match stream.read(&mut buffer) {
             Ok(n) if n > 0 => n,
@@ -116,29 +138,51 @@ impl SecretsServer {
 
                 info!("response: {:?}", response);
 
-                let response_json = serde_json::to_string(&response);
-                match response_json {
-                    Ok(response_json) => {
-                        let mut response_buffer = Vec::new();
-                        response_buffer.write_u32::<NetworkEndian>(response_json.len() as u32)?;
-                        response_buffer.extend_from_slice(response_json.as_bytes());
+                let response_json = serde_json::to_string(&response)?;
 
-                        let result = stream.write_all(&response_buffer);
-                        match result {
-                            Ok(_) => {
-                                info!("Response sent successfully");
-                                stream.flush()?;
-                                stream.shutdown(std::net::Shutdown::Write)?;
-                            }
-                            Err(e) => {
-                                error!("Error sending response: {}", e);
-                                stream.flush()?;
-                                stream.shutdown(std::net::Shutdown::Write)?;
-                            }
-                        }
+                let encrypted_response =
+                    DHKeyExchange::encrypt(&shared_secret, response_json.as_bytes());
+
+                //     match response_json {
+                //         Ok(response_json) => {
+                //             let mut response_buffer = Vec::new();
+                //             response_buffer.write_u32::<NetworkEndian>(response_json.len() as u32)?;
+                //             response_buffer.extend_from_slice(response_json.as_bytes());
+
+                //             let result = stream.write_all(&response_buffer);
+                //             match result {
+                //                 Ok(_) => {
+                //                     info!("Response sent successfully");
+                //                     stream.flush()?;
+                //                     stream.shutdown(std::net::Shutdown::Write)?;
+                //                 }
+                //                 Err(e) => {
+                //                     error!("Error sending response: {}", e);
+                //                     stream.flush()?;
+                //                     stream.shutdown(std::net::Shutdown::Write)?;
+                //                 }
+                //             }
+                //         }
+                //         Err(e) => {
+                //             error!("Error serializing response: {}", e);
+                //             stream.flush()?;
+                //             stream.shutdown(std::net::Shutdown::Write)?;
+                //         }
+                //     }
+
+                let mut response_buffer = Vec::new();
+                response_buffer.write_u32::<NetworkEndian>(encrypted_response.len() as u32)?;
+                response_buffer.extend_from_slice(&encrypted_response);
+
+                let result = stream.write_all(&response_buffer);
+                match result {
+                    Ok(_) => {
+                        info!("Encrypted response sent successfully");
+                        stream.flush()?;
+                        stream.shutdown(std::net::Shutdown::Write)?;
                     }
                     Err(e) => {
-                        error!("Error serializing response: {}", e);
+                        error!("Error sending response: {}", e);
                         stream.flush()?;
                         stream.shutdown(std::net::Shutdown::Write)?;
                     }

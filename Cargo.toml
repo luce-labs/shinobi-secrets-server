@@ -15,3 +15,7 @@ serde_json = "1.0.133"
 reqwest = { version = "0.12.9", features = ["json"] }
 daemonize = "0.5.0"
 tokio = "1.41.1"
+rsa = "0.9.7"
+num-bigint = { version = "0.4.6", features = ["rand"] }
+sha2 = "0.10.8"
+aes-gcm = "0.10.3"
